@@ -16,6 +16,4 @@ public class GithubUserSearch {
             e.printStackTrace();
         }
     }
-
-
 }

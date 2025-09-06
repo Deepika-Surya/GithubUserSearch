@@ -13,45 +13,52 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 
 public class GithubUserSearchService {
-    public void fetchAndStoreUsers(String searchTerm) throws Exception {
+    public String fetchAndStoreUsers(String searchTerm) throws Exception {
         String apiUrl = "https://api.github.com/search/users?q=" + searchTerm;
-    URL url = new URL(apiUrl);
-    HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+        HttpURLConnection conn = (HttpURLConnection) new URL(apiUrl).openConnection();
         conn.setRequestMethod("GET");
         conn.setRequestProperty("User-Agent", "Java-App");
 
-
-    BufferedReader in = new BufferedReader(new InputStreamReader(conn.getInputStream()));
-    StringBuilder response = new StringBuilder();
-    String line;
+        BufferedReader in = new BufferedReader(new InputStreamReader(conn.getInputStream()));
+        StringBuilder response = new StringBuilder();
+        String line;
         while ((line = in.readLine()) != null) {
-        response.append(line);
-    }
+            response.append(line);
+        }
         in.close();
 
-    // Deserialize JSON
-    ObjectMapper mapper = new ObjectMapper();
-    GitHubResponse gitHubResponse = mapper.readValue(response.toString(), GitHubResponse.class);
+        ObjectMapper mapper = new ObjectMapper();
+        GitHubResponse gitHubResponse = mapper.readValue(response.toString(), GitHubResponse.class);
 
-    // Insert into DB
         try (Connection dbConn = DatabaseUtil.getConnection()) {
-        String insertSQL = "INSERT INTO github_users (id, login, avatar_url, html_url, type, score) " +
-                "VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT (id) DO NOTHING";
+            String insertUserSQL = "INSERT INTO github_users (id, login, avatar_url, html_url, type, score) " +
+                    "VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT (id) DO NOTHING";
+            PreparedStatement userStmt = dbConn.prepareStatement(insertUserSQL);
 
-        try (PreparedStatement pstmt = dbConn.prepareStatement(insertSQL)) {
-            for (GitHubUser userObj : gitHubResponse.items) {
-                pstmt.setLong(1, userObj.id);
-                pstmt.setString(2, userObj.login);
-                pstmt.setString(3, userObj.avatar_url);
-                pstmt.setString(4, userObj.html_url);
-                pstmt.setString(5, userObj.type);
-                pstmt.setDouble(6, userObj.score);
-                pstmt.addBatch();
+            for (GitHubUser user : gitHubResponse.items) {
+                userStmt.setLong(1, user.id);
+                userStmt.setString(2, user.login);
+                userStmt.setString(3, user.avatar_url);
+                userStmt.setString(4, user.html_url);
+                userStmt.setString(5, user.type);
+                userStmt.setDouble(6, user.score);
+                userStmt.addBatch();
             }
-            pstmt.executeBatch();
-            System.out.println("✅ Data inserted into database successfully!");
+            userStmt.executeBatch();
+
+            String insertHistorySQL = "INSERT INTO history (search_string, response_data, user_id) VALUES (?, ?, ?)";
+            PreparedStatement historyStmt = dbConn.prepareStatement(insertHistorySQL);
+
+            for (GitHubUser user : gitHubResponse.items) {
+                historyStmt.setString(1, searchTerm);
+                historyStmt.setString(2, response.toString());
+                historyStmt.setLong(3, user.id);
+                historyStmt.addBatch();
+            }
+            historyStmt.executeBatch();
         }
+
+        return response.toString();
     }
-  }
 }
 
