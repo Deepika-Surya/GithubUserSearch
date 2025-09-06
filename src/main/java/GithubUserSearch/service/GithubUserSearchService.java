@@ -52,6 +52,6 @@ public class GithubUserSearchService {
             System.out.println("✅ Data inserted into database successfully!");
         }
     }
-}
+  }
 }
 
