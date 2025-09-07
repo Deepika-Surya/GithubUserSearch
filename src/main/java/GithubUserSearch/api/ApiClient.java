@@ -6,7 +6,11 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 
 public class ApiClient {
-    public static String fetch(String urlStr, String method) throws Exception {
+    public static String fetch(String urlStr, String method, String params) throws Exception {
+        if (params != null && !params.isEmpty() && method.equalsIgnoreCase("GET")) {
+            urlStr = urlStr + "?" + params;
+        }
+
         URL url = new URL(urlStr);
         HttpURLConnection conn = (HttpURLConnection) url.openConnection();
         conn.setRequestMethod(method);
